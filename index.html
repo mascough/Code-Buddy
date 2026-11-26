@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111111">
+  <title>Code Buddy</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <img src="icons/icon.svg" alt="" width="28" height="28">
+      <h1>Code Buddy</h1>
+      <span id="net" class="net" role="status" aria-live="polite"></span>
+    </div>
+    <p id="packs" class="packs"></p>
+    <label class="search">
+      <span class="sr">Search all phases</span>
+      <input id="q" type="search" placeholder="Search items, requirements, notes" autocomplete="off" enterkeyhint="search">
+    </label>
+  </header>
+  <div class="phase-nav">
+    <nav id="phases" class="phases" aria-label="Phases"></nav>
+    <div id="aux-nav" class="aux-nav"></div>
+  </div>
+  <main id="main" aria-live="polite">
+    <p class="empty">Loading content…</p>
+  </main>
+  <footer id="foot" class="foot"></footer>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
