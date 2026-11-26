@@ -41,7 +41,7 @@ node tools/proof-field.mjs http://localhost:8765/
 Uses system Chrome (`/usr/bin/google-chrome`, override with `CHROME=`) at 390x844. Clicks through all 11 phases, checks
 every phase has items with one "More info" button each, checks tap targets (phase buttons, Design criteria, search,
 "More info"/"Hide info", table toggles) are ≥48px, expands and collapses "More info" on Floor joist spans, checks the
-`code-buddy-v7` cache, reloads offline, and writes `../screenshots-proof/14-field-checklist-collapsed.png` and
+`code-buddy-v8` cache, reloads offline, and writes `../screenshots-proof/14-field-checklist-collapsed.png` and
 `15-field-checklist-more-info.png`. Exits non-zero on any failure or page error. (`tools/proof.mjs` is the older v4 run.)
 
 `node tools/make-icons.mjs` re-renders the PNG icons from `icons/icon.svg`.
