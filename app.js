@@ -1,4 +1,4 @@
-// Code Buddy prototype. Reads data/content.json (built by tools/build-content.mjs).
+// Code Buddy prototype (field-checklist UI). Reads data/content.json (built by tools/build-content.mjs).
 // Renders only what is in the content packs; never fills in missing values.
 
 const CRITERIA_TAB = '__criteria';
@@ -57,66 +57,91 @@ function itemsFor(phaseId) {
 }
 const notesFor = (it) => D.localNotes.filter((n) => n.phase === it.phase && n.itemId === it.id);
 
-function badge(status, reason) {
+const JUR_NAME = { nys: 'NYS', clayton: 'Village of Clayton' };
+const jurName = (id) => JUR_NAME[id] || jurLabel(id);
+const LONG_TEXT = 220; // chars; longer requirement text is clamped with a "Full text" toggle
+
+function badge(status) {
   if (!status) return '';
-  return `<span class="badge ${esc(status)}">${esc(STATUS_LABEL[status] || status)}</span>` +
-    (reason ? `<div class="reason ${esc(status)}">${esc(reason)}</div>` : '');
+  return `<span class="badge ${esc(status)}">${esc(STATUS_LABEL[status] || status)}</span>`;
 }
-const emptyBox = (what, jur) => `<p class="empty">No ${esc(jurLabel(jur))} ${what} yet for this item. <b>Owner: ${esc(ownerOf(jur))}</b></p>`;
+const reasonBox = (o) => (o?.status && o.status !== 'ok' && o.statusReason) ? `<div class="reason ${esc(o.status)}">${esc(o.statusReason)}</div>` : '';
+const emptyBox = (what, jur) => `<p class="empty">No ${esc(jurName(jur))} ${what} yet for this item. <b>Owner: ${esc(ownerOf(jur))}</b></p>`;
+const secLabel = (c) => {
+  if (!c?.section) return c?.code || '';
+  const s = c.section.trim();
+  return [c.code, /^(§|Table|Sec)/i.test(s) ? s : `§ ${s}`].filter(Boolean).join(' ');
+};
+const pill = (text, kind = '') => text ? `<span class="pill ${kind}">${esc(text)}</span>` : '';
+
+// Code section / table numbers for an item, deduped, in reading order.
+function refsFor(it) {
+  const out = new Map();
+  const add = (label, kind) => { if (label && !out.has(label)) out.set(label, kind); };
+  for (const id of it.requirementRefs) add(secLabel(D.requirements[id]?.citation), 'sec');
+  for (const id of it.tableRefs) { const t = D.tables[id]; if (t) add(`Table ${t.sourceTable}`, 'tbl'); }
+  for (const id of it.criteriaRefs) add(secLabel(D.criteria[id]?.citation), 'sec');
+  return [...out];
+}
 
 function renderRequirement(r, id) {
-  if (!r) return `<p class="empty">Missing requirement <code>${esc(id)}</code> (referenced but not in any loaded file).</p>`;
-  return `<div class="card">${badge(r.status)}<p>${esc(r.text)}</p><div class="cite">${cite(r.citation)}</div>` +
-    (r.status !== 'ok' && r.statusReason ? `<div class="reason ${esc(r.status)}">${esc(r.statusReason)}</div>` : '') +
-    (r.callouts?.length ? `<ul class="callouts">${r.callouts.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : '') + `</div>`;
+  if (!r) return `<li class="pt"><p class="empty">Missing requirement <code>${esc(id)}</code> (referenced but not in any loaded file).</p></li>`;
+  const long = r.text.length > LONG_TEXT;
+  return `<li class="pt ${esc(r.status || '')}">
+    <div class="pt-head">${badge(r.status)}${pill(secLabel(r.citation), 'sec')}</div>
+    <p class="pt-text${long ? ' clamp' : ''}">${esc(r.text)}</p>
+    ${long ? `<button type="button" class="mini" data-full aria-expanded="false">Full text</button>` : ''}
+    ${reasonBox(r)}
+    ${r.callouts?.length ? `<ul class="callouts">${r.callouts.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
+    <div class="cite">${cite(r.citation)}</div>
+  </li>`;
 }
 
 function renderTable(t, id) {
   if (!t) return `<p class="empty">Missing table <code>${esc(id)}</code> (referenced but not in any loaded file).</p>`;
   const head = t.columns.map((c) => `<th scope="col">${esc(c)}</th>`).join('');
   const body = t.rows.map((row) => `<tr>${row.map((cell, i) => i === 0 ? `<th scope="row">${esc(cell)}</th>` : `<td>${esc(cell)}</td>`).join('')}</tr>`).join('');
-  return `<div class="card">${badge(t.status)}
-    <p class="tbl-title">${esc(t.title)}</p>
-    <div class="cite">Table ${esc(t.sourceTable)} · ${cite(t.citation)}</div>
-    ${t.units ? `<p class="cite">Units: ${esc(t.units)}</p>` : ''}
-    ${t.status !== 'ok' && t.statusReason ? `<div class="reason ${esc(t.status)}">${esc(t.statusReason)}</div>` : ''}
+  return `<details class="tbl card">
+    <summary><span class="tbl-sum"><span class="tbl-no">Table ${esc(t.sourceTable)}</span><span class="tbl-title">${esc(t.title)}</span></span>${badge(t.status)}</summary>
+    <div class="cite">${cite(t.citation)}</div>
+    ${t.units ? `<p class="units"><b>Units:</b> ${esc(t.units)}</p>` : ''}
+    ${reasonBox(t)}
     <div class="tbl-wrap" tabindex="0" role="region" aria-label="Table ${esc(t.sourceTable)}, scrolls sideways"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
     ${t.footnotes?.length ? `<ol class="foot-notes">${t.footnotes.map((f) => `<li>${esc(f)}</li>`).join('')}</ol>` : ''}
-  </div>`;
+  </details>`;
 }
 
 function renderNote(n) {
-  return `<div class="card"><span class="jur">${esc(jurLabel(n.jurisdiction))}</span> ${badge(n.status)}
-    <p>${esc(n.text)}</p><div class="cite">${cite(n.source)}</div>
-    ${n.status && n.status !== 'ok' && n.statusReason ? `<div class="reason ${esc(n.status)}">${esc(n.statusReason)}</div>` : ''}</div>`;
+  return `<div class="card local"><div class="pt-head"><span class="jur">${esc(jurName(n.jurisdiction))}</span>${badge(n.status)}${pill(secLabel(n.source), 'sec')}</div>
+    <p>${esc(n.text)}</p>${reasonBox(n)}<div class="cite">${cite(n.source)}</div></div>`;
 }
 
 function renderCriterion(c, id) {
   if (!c) return `<p class="empty">Missing design criterion <code>${esc(id)}</code> (referenced but not in any loaded file).</p>`;
-  return `<div class="card"><span class="jur">${esc(jurLabel(c.jurisdiction))}</span> ${badge(c.status)}
+  return `<div class="card"><div class="pt-head"><span class="jur">${esc(jurName(c.jurisdiction))}</span>${badge(c.status)}</div>
     <div class="crit-row"><span>${esc(c.name)}</span><span class="crit-val">${esc(c.value)}${c.unit ? ' ' + esc(c.unit) : ''}</span></div>
-    <div class="cite">${cite(c.citation)}</div>
-    ${c.status !== 'ok' && c.statusReason ? `<div class="reason ${esc(c.status)}">${esc(c.statusReason)}</div>` : ''}</div>`;
+    <div class="cite">${cite(c.citation)}</div>${reasonBox(c)}</div>`;
 }
 
-function renderDetail(it) {
+function renderDetail(it, key) {
   const base = it.jurisdiction || basePacks[0];
   const notes = notesFor(it);
-  let h = '<div class="detail">';
-  h += '<h3>Requirements</h3>';
-  h += it.requirementRefs.length ? it.requirementRefs.map((id) => renderRequirement(D.requirements[id], id)).join('') : emptyBox('requirements', base);
-  h += '<h3>Tables</h3>';
-  h += it.tableRefs.length ? it.tableRefs.map((id) => renderTable(D.tables[id], id)).join('') : (it.stub ? emptyBox('tables', base) : '<p class="empty">No tables for this item.</p>');
-  h += '<h3>Local notes</h3>';
-  const packs = localPacks.length ? localPacks : [];
-  if (!packs.length) h += '<p class="empty">No local packs loaded.</p>';
-  for (const j of packs) {
+  const refs = refsFor(it);
+  let h = `<div class="detail" id="d-${esc(key.replace('/', '--'))}">`;
+  h += `<section><h3>Code references</h3>` +
+    (refs.length ? `<div class="pills">${refs.map(([l, k]) => pill(l, k)).join('')}</div>` : '<p class="empty">No code sections cited yet.</p>') + `</section>`;
+  h += `<section><h3>What to look for</h3>`;
+  if (it.summary) h += `<p class="look">${esc(it.summary)}</p>`;
+  h += it.requirementRefs.length ? `<ol class="points">${it.requirementRefs.map((id) => renderRequirement(D.requirements[id], id)).join('')}</ol>` : emptyBox('requirements', base);
+  h += `</section>`;
+  if (it.tableRefs.length) h += `<section><h3>Tables · ${it.tableRefs.length}</h3><p class="hint">Tap a table to open it. Wide tables scroll sideways.</p>${it.tableRefs.map((id) => renderTable(D.tables[id], id)).join('')}</section>`;
+  else if (it.stub) h += `<section><h3>Tables</h3>${emptyBox('tables', base)}</section>`;
+  for (const j of localPacks) {
     const mine = notes.filter((n) => n.jurisdiction === j);
-    h += mine.length ? mine.map(renderNote).join('') : `<p class="empty">No ${esc(jurLabel(j))} notes yet for this item. <b>Owner: ${esc(ownerOf(j))}</b></p>`;
+    if (mine.length) h += `<section><h3>${esc(jurName(j))} local notes · ${mine.length}</h3>${mine.map(renderNote).join('')}</section>`;
   }
-  h += '<h3>Design criteria</h3>';
-  h += it.criteriaRefs.length ? it.criteriaRefs.map((id) => renderCriterion(D.criteria[id], id)).join('')
-    : `<p class="empty">No design criteria linked to this item yet (item owner: ${esc(ownerOf(base))}). All criteria are under the “Design criteria” tab.</p>`;
+  if (it.criteriaRefs.length) h += `<section><h3>Design criteria</h3>${it.criteriaRefs.map((id) => renderCriterion(D.criteria[id], id)).join('')}</section>`;
+  h += `<button type="button" class="info-btn hide-bottom" data-key="${esc(key)}" aria-expanded="true">Hide info ▴</button>`;
   return h + '</div>';
 }
 
@@ -124,20 +149,24 @@ function itemRow(it) {
   const key = `${it.phase}/${it.id}`;
   const open = state.open.has(key);
   const nNotes = notesFor(it).length;
+  const nVerify = it.requirementRefs.filter((r) => D.requirements[r] && D.requirements[r].status !== 'ok').length +
+    it.tableRefs.filter((t) => D.tables[t] && D.tables[t].status !== 'ok').length;
   const chips = [
-    it.stub ? `<span class="chip stub">No ${esc(jurLabel(basePacks[0] || 'nys'))} item yet</span>` : '',
+    it.stub ? `<span class="chip stub">No ${esc(jurName(basePacks[0] || 'nys'))} item yet</span>` : '',
     it.tableRefs.length ? `<span class="chip">${it.tableRefs.length} table${it.tableRefs.length > 1 ? 's' : ''}</span>` : '',
-    nNotes ? `<span class="chip loc">${nNotes} local note${nNotes > 1 ? 's' : ''}</span>` : '',
+    nNotes ? `<span class="chip loc">${nNotes} local</span>` : '',
+    nVerify ? `<span class="chip vfy">${nVerify} to verify</span>` : '',
   ].join('');
+  const did = `d-${key.replace('/', '--')}`;
   return `<li class="item" data-open="${open}" id="i-${esc(it.phase)}--${esc(it.id)}">
-    <button type="button" aria-expanded="${open}" data-key="${esc(key)}">
-      <span class="chev" aria-hidden="true">▸</span>
-      <span><span class="t">${esc(it.title)}</span>${it.summary ? `<span class="s">${esc(it.summary)}</span>` : ''}${chips ? `<span class="meta">${chips}</span>` : ''}</span>
-    </button>${open ? renderDetail(it) : ''}</li>`;
+    <div class="row" data-row="${esc(key)}">
+      <div class="row-text"><span class="t">${esc(it.title)}</span>${chips ? `<span class="meta">${chips}</span>` : ''}</div>
+      <button type="button" class="info-btn" data-key="${esc(key)}" aria-expanded="${open}" aria-controls="${esc(did)}">${open ? 'Hide info' : 'More info'}</button>
+    </div>${open ? renderDetail(it, key) : ''}</li>`;
 }
 
 function matches(it, q) {
-  const hay = [it.title, it.summary, ...it.requirementRefs.map((r) => D.requirements[r]?.text), ...notesFor(it).map((n) => n.text)].join(' \n ').toLowerCase();
+  const hay = [it.title, it.summary, ...it.requirementRefs.map((r) => D.requirements[r]?.text), ...refsFor(it).map(([l]) => l), ...notesFor(it).map((n) => n.text)].join(' \n ').toLowerCase();
   return q.split(/\s+/).filter(Boolean).every((w) => hay.includes(w));
 }
 
@@ -247,12 +276,24 @@ document.addEventListener('click', (e) => {
     history.replaceState(null, '', '#' + state.phase);
     render(); window.scrollTo(0, 0); return;
   }
-  const row = e.target.closest('button[data-key]');
-  if (row) {
-    const k = row.dataset.key;
+  const full = e.target.closest('button[data-full]');
+  if (full) {
+    const p = full.previousElementSibling;
+    const on = p.classList.toggle('clamp') === false;
+    full.setAttribute('aria-expanded', String(on));
+    full.textContent = on ? 'Shorter' : 'Full text';
+    return;
+  }
+  // "More info" / "Hide info" buttons, or a tap anywhere on a collapsed row's title area.
+  const btn = e.target.closest('button[data-key]') || e.target.closest('[data-row]')?.querySelector('button[data-key]');
+  if (btn) {
+    const k = btn.dataset.key;
+    const wasBottom = btn.classList.contains('hide-bottom');
     state.open.has(k) ? state.open.delete(k) : state.open.add(k);
     render();
-    if (state.open.has(k)) document.getElementById('i-' + k.replace('/', '--'))?.scrollIntoView({ block: 'start' });
+    const li = document.getElementById('i-' + k.replace('/', '--'));
+    if (state.open.has(k) || wasBottom) li?.scrollIntoView({ block: 'start' });
+    li?.querySelector('.row .info-btn')?.focus({ preventScroll: true });
   }
 });
 let t;
