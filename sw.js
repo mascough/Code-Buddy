@@ -1,6 +1,6 @@
 // Offline-first service worker: precaches the app shell and the content bundle,
 // then serves from cache and refreshes in the background (stale-while-revalidate).
-const CACHE = 'code-buddy-v6';
+const CACHE = 'code-buddy-v7';
 const PRECACHE = [
   './', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest',
   'icons/icon.svg',

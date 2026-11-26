@@ -35,15 +35,28 @@ so new content shows on the second load after a rebuild. When you change shell f
 ## Proof / smoke test
 
 ```
-node tools/proof.mjs http://localhost:8765/
+node tools/proof-field.mjs http://localhost:8765/
 ```
 
-Uses system Chrome (`/usr/bin/google-chrome`, override with `CHROME=`) at 390x844, writes screenshots to
-`../screenshots-proof/` (including `10-eleven-phases-framing.png` and `11-eleven-phases-empty.png`), checks
-that all 11 phase tabs are ≥48px tap targets, and checks that the service worker (`code-buddy-v4`)
-registers and the page reloads offline (both `context.setOffline(true)` and a killed server).
+Uses system Chrome (`/usr/bin/google-chrome`, override with `CHROME=`) at 390x844. Clicks through all 11 phases, checks
+every phase has items with one "More info" button each, checks tap targets (phase buttons, Design criteria, search,
+"More info"/"Hide info", table toggles) are ≥48px, expands and collapses "More info" on Floor joist spans, checks the
+`code-buddy-v7` cache, reloads offline, and writes `../screenshots-proof/14-field-checklist-collapsed.png` and
+`15-field-checklist-more-info.png`. Exits non-zero on any failure or page error. (`tools/proof.mjs` is the older v4 run.)
 
 `node tools/make-icons.mjs` re-renders the PNG icons from `icons/icon.svg`.
+
+## Field-checklist UI
+
+- Each phase is a short checklist: one row per item with the title, small chips (tables, local notes, "to verify"
+  count), and a high-contrast **More info** button (≥48px) that turns into a yellow **Hide info** when open.
+  Tapping the row title also toggles it. No summary paragraphs on collapsed rows.
+- The **More info** panel shows, in order: **Code references** (deduped section pills and black `Table …` pills),
+  **What to look for** (item summary, then each requirement with its status badge — OK / Verify / Confirm locally —
+  section pill, text clamped to 3 lines with a "Full text" toggle, status reason, callouts and full citation),
+  **Tables** (tap to open; sticky header and first column, source table number, citation, units, footnotes),
+  **Village of Clayton local notes**, and linked **Design criteria**, with a second **Hide info** button at the end.
+- Search also matches code section and table numbers (e.g. `R502.3.1`).
 
 ## How the data joins (per ../schema.md)
 
